@@ -88,17 +88,32 @@ prices = st.session_state['prices']
 last_price = prices['Close'].iloc[-1]
 avg_sent = sum(n['sentiment'] for n in news) / len(news) if news else 0
 
-# --- БЛОК МЕТРИК ---
+# --- БЛОК МЕТРИК (РЫНОК И SENTIMENT) ---
+st.subheader("📈 Текущая ситуация")
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Цена (Close)", f"{last_price:.2f} ₽")
 col2.metric("Средний Sentiment", f"{avg_sent:+.2f}")
-col3.metric("Прогноз ETS", "~265 ₽", "Цель АТОН: 320 ₽")
-col4.metric("Новостей", len(news))
+col3.metric("Новостей", len(news))
+col4.metric("Прогноз ETS", "~265 ₽")
+
+# --- БЛОК ФУНДАМЕНТАЛА (АТОН) ---
+st.markdown("---")
+st.subheader("🏦 Фундаментальный анализ (АТОН)")
+
+target_price = 320.0  # Целевая цена из стратегии АТОН
+dividend = 36.0       # Дивиденды на акцию
+
+upside = ((target_price - last_price) / last_price) * 100
+
+col_f1, col_f2, col_f3 = st.columns(3)
+col_f1.metric("Целевая цена", f"{target_price:.2f} ₽", f"Потенциал: {upside:+.1f}%")
+col_f2.metric("Дивиденды", f"{dividend:.2f} ₽")
+col_f3.metric("Див. доходность", f"{(dividend/last_price)*100:.1f}%")
 
 st.markdown("---")
 
 # --- ГРАФИК ---
-st.subheader("📈 Динамика цены")
+st.subheader("📉 Динамика цены")
 fig = go.Figure()
 fig.add_trace(go.Scatter(x=prices['Date'], y=prices['Close'], mode='lines', name='Цена', line=dict(color='blue')))
 fig.update_layout(height=400, margin=dict(l=0, r=0, t=0, b=0))
