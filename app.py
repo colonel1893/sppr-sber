@@ -11,23 +11,45 @@ from gigachat import GigaChat
 st.set_page_config(page_title="СППР: Сбер", layout="wide")
 st.title("📊 СППР: Сбер")
 
-# --- ФУНКЦИЯ СБОРА НОВОСТЕЙ И ОЦЕНКИ ---
+# --- ФУНКЦИЯ СБОРА НОВОСТЕЙ С ФИЛЬТРАЦИЕЙ ---
 def fetch_news_and_sentiment(auth_key):
     feeds = {
         "РБК": "https://rssexport.rbc.ru/rbcnews/news/30/full.rss",
         "Интерфакс": "https://www.interfax.ru/rss",
     }
+    
+    # Ключевые слова для фильтрации релевантных новостей
+    keywords = ["сбер", "банк", "цб", "ставк", "финанс", "акци", "биржа", "инвест", "деньг", "кредит"]
+    
     news = []
     for source, url in feeds.items():
         feed = feedparser.parse(url)
-        for entry in feed.entries[:5]:
-            news.append({
-                "source": source, 
-                "title": entry.title, 
-                "summary": entry.get("summary", "")[:200], 
-                "published": entry.get("published", "")
-            })
+        for entry in feed.entries[:10]: # Берем больше новостей (10 вместо 5)
+            title_lower = entry.title.lower()
+            summary_lower = entry.get("summary", "").lower()
+            
+            # Проверяем, есть ли ключевые слова в заголовке или тексте
+            if any(kw in title_lower or kw in summary_lower for kw in keywords):
+                news.append({
+                    "source": source, 
+                    "title": entry.title, 
+                    "summary": entry.get("summary", "")[:200], 
+                    "published": entry.get("published", "")
+                })
     
+    # Если релевантных новостей нет, отправляем хотя бы 3 для контекста
+    if not news:
+        for source, url in feeds.items():
+            feed = feedparser.parse(url)
+            for entry in feed.entries[:3]:
+                news.append({
+                    "source": source, 
+                    "title": entry.title, 
+                    "summary": entry.get("summary", "")[:200], 
+                    "published": entry.get("published", "")
+                })
+
+    # Дальше идет оценка GigaChat
     with GigaChat(credentials=auth_key, scope="GIGACHAT_API_PERS", model="GigaChat-2", verify_ssl_certs=False) as giga:
         for item in news:
             prompt = f"""Ты — финансовый аналитик инвестиционной компании. 
@@ -114,7 +136,6 @@ col_f3.metric("Див. доходность", f"{(dividend/last_price)*100:.1f}%
 st.markdown("---")
 st.subheader("🤖 Рекомендация системы")
 
-# Логика рекомендаций
 if avg_sent > 0.3 and last_price < target_price:
     rec_text = "🟢 **ПОКУПАТЬ**. Позитивный новостной фон и цена ниже целевой (потенциал роста)."
     rec_color = "green"
@@ -142,15 +163,18 @@ st.plotly_chart(fig, use_container_width=True)
 
 # --- НОВОСТИ ---
 st.subheader("📰 Лента новостей")
-for item in news:
-    if item['sentiment'] > 0.2:
-        color = "green"
-    elif item['sentiment'] < -0.2:
-        color = "red"
-    else:
-        color = "gray"
-    st.markdown(f"**[{item['sentiment']:+.2f}]** <span style='color:{color}'>{item['title']}</span>", unsafe_allow_html=True)
-    st.caption(f"_{item['source']} | {item['published']}_")
+if not news:
+    st.warning("Релевантных новостей за последнее время не найдено. Попробуйте обновить позже.")
+else:
+    for item in news:
+        if item['sentiment'] > 0.2:
+            color = "green"
+        elif item['sentiment'] < -0.2:
+            color = "red"
+        else:
+            color = "gray"
+        st.markdown(f"**[{item['sentiment']:+.2f}]** <span style='color:{color}'>{item['title']}</span>", unsafe_allow_html=True)
+        st.caption(f"_{item['source']} | {item['published']}_")
 
 st.markdown("---")
 
