@@ -21,11 +21,25 @@ def fetch_news_and_sentiment(auth_key):
     for source, url in feeds.items():
         feed = feedparser.parse(url)
         for entry in feed.entries[:5]:
-            news.append({"source": source, "title": entry.title, "summary": entry.get("summary", "")[:200], "published": entry.get("published", "")})
+            news.append({
+                "source": source, 
+                "title": entry.title, 
+                "summary": entry.get("summary", "")[:200], 
+                "published": entry.get("published", "")
+            })
     
     with GigaChat(credentials=auth_key, scope="GIGACHAT_API_PERS", model="GigaChat-2", verify_ssl_certs=False) as giga:
         for item in news:
-            prompt = f"Оцени тональность для рынка от -1 до +1. Только число. {item['title']}"
+            prompt = f"""Ты — финансовый аналитик инвестиционной компании. 
+Твоя задача — оценить, как эта новость повлияет на цену акций Сбербанка (SBER).
+Игнорируй новости, которые не связаны с финансовым сектором, банками или экономикой России.
+Верни ТОЛЬКО одно число от -1 (резко негативно) до +1 (резко позитивно).
+0 — если новость нейтральна или нерелевантна.
+Без лишних слов.
+
+Заголовок: {item['title']}
+Текст: {item.get('summary', '')}"""
+            
             try:
                 res = giga.chat(prompt)
                 item['sentiment'] = float(res.choices[0].message.content.strip().replace(',', '.'))
@@ -41,14 +55,14 @@ def fetch_prices():
     header_index = next(i for i, line in enumerate(lines) if "TRADEDATE" in line)
     clean_csv = '\n'.join(lines[header_index:])
     df = pd.read_csv(StringIO(clean_csv), sep='\t')
-    if 'TRADEDATE' not in df.columns: df = pd.read_csv(StringIO(clean_csv), sep=';')
+    if 'TRADEDATE' not in df.columns: 
+        df = pd.read_csv(StringIO(clean_csv), sep=';')
     df = df[['TRADEDATE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME']]
     df.columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
     df['Date'] = pd.to_datetime(df['Date'].astype(str).str.replace('.', '-', regex=False), errors='coerce')
     return df.dropna().sort_values('Date')
 
 # --- ЗАГРУЗКА ДАННЫХ ---
-# Ключ GigaChat берем из секретов Streamlit (об этом ниже)
 try:
     AUTH_KEY = st.secrets["GIGA_AUTH_KEY"]
 except:
