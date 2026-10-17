@@ -100,8 +100,8 @@ col4.metric("Прогноз ETS", "~265 ₽")
 st.markdown("---")
 st.subheader("🏦 Фундаментальный анализ (АТОН)")
 
-target_price = 320.0  # Целевая цена из стратегии АТОН
-dividend = 36.0       # Дивиденды на акцию
+target_price = 320.0
+dividend = 36.0
 
 upside = ((target_price - last_price) / last_price) * 100
 
@@ -109,6 +109,27 @@ col_f1, col_f2, col_f3 = st.columns(3)
 col_f1.metric("Целевая цена", f"{target_price:.2f} ₽", f"Потенциал: {upside:+.1f}%")
 col_f2.metric("Дивиденды", f"{dividend:.2f} ₽")
 col_f3.metric("Див. доходность", f"{(dividend/last_price)*100:.1f}%")
+
+# --- БЛОК РЕКОМЕНДАЦИИ ---
+st.markdown("---")
+st.subheader("🤖 Рекомендация системы")
+
+# Логика рекомендаций
+if avg_sent > 0.3 and last_price < target_price:
+    rec_text = "🟢 **ПОКУПАТЬ**. Позитивный новостной фон и цена ниже целевой (потенциал роста)."
+    rec_color = "green"
+elif avg_sent < -0.3 and last_price > target_price:
+    rec_text = "🔴 **ПРОДАВАТЬ**. Негативный новостной фон и цена выше целевой (риск коррекции)."
+    rec_color = "red"
+elif last_price < target_price and avg_sent < 0:
+    rec_text = "🟡 **ЖДАТЬ**. Цена привлекательна, но новости давят. Лучше дождаться разворота sentiment."
+    rec_color = "orange"
+else:
+    rec_text = "⚪ **ДЕРЖАТЬ**. Сильных сигналов нет. Рынок в равновесии."
+    rec_color = "gray"
+
+st.markdown(f"<h3 style='color:{rec_color};'>{rec_text}</h3>", unsafe_allow_html=True)
+st.caption(f"Логика: Sentiment = {avg_sent:+.2f}, Цена = {last_price:.2f} ₽, Цель = {target_price:.2f} ₽")
 
 st.markdown("---")
 
