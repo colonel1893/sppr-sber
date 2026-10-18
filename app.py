@@ -6,7 +6,6 @@ import requests
 from io import StringIO
 import feedparser
 from gigachat import GigaChat
-from datetime import datetime, timedelta
 
 # Настройка страницы
 st.set_page_config(page_title="СППР: Сбер", layout="wide")
@@ -19,7 +18,6 @@ def fetch_news_and_sentiment(auth_key):
         "Интерфакс": "https://www.interfax.ru/rss",
     }
     
-    # Расширенный список ключевых слов, влияющих на Сбер
     keywords = [
         "сбер", "банк", "цб", "ставк", "финанс", "акци", "биржа", "инвест", "деньг", "кредит",
         "санкц", "инфляц", "рубл", "дивиденд", "прибыл", "отчет", "регулятор"
@@ -73,22 +71,26 @@ def fetch_news_and_sentiment(auth_key):
 
 # --- ФУНКЦИЯ СКАЧИВАНИЯ КОТИРОВОК (ИСПРАВЛЕНА) ---
 def fetch_prices():
-    # Берем данные с 2024 года по сегодняшний день (2026)
-    end_date = datetime.now().strftime('%Y-%m-%d')
-    start_date = (datetime.now() - timedelta(days=730)).strftime('%Y-%m-%d')
+    # Запрашиваем данные с 2024 года (без жесткого ограничения конца)
+    start_date = "2024-01-01"
+    url = f"https://iss.moex.com/iss/history/engines/stock/markets/shares/boards/TQBR/securities/SBER.csv?from={start_date}"
     
-    url = f"https://iss.moex.com/iss/history/engines/stock/markets/shares/boards/TQBR/securities/SBER.csv?from={start_date}&to={end_date}"
     response = requests.get(url)
     lines = response.text.split('\n')
     header_index = next(i for i, line in enumerate(lines) if "TRADEDATE" in line)
     clean_csv = '\n'.join(lines[header_index:])
     df = pd.read_csv(StringIO(clean_csv), sep='\t')
+    
     if 'TRADEDATE' not in df.columns: 
         df = pd.read_csv(StringIO(clean_csv), sep=';')
+        
     df = df[['TRADEDATE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME']]
     df.columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
     df['Date'] = pd.to_datetime(df['Date'].astype(str).str.replace('.', '-', regex=False), errors='coerce')
-    return df.dropna().sort_values('Date')
+    df = df.dropna().sort_values('Date')
+    
+    # ГЛАВНЫЙ ТРЮК: берем только последние 60 строк из того, что реально пришло
+    return df.tail(60)
 
 # --- ЗАГРУЗКА ДАННЫХ ---
 try:
@@ -161,9 +163,8 @@ st.markdown("---")
 st.subheader("📉 Динамика цены (последние 60 дней)")
 fig = go.Figure()
 
-prices_plot = prices.tail(60) 
-
-fig.add_trace(go.Scatter(x=prices_plot['Date'], y=prices_plot['Close'], mode='lines', name='Цена', line=dict(color='blue')))
+# Функция fetch_prices уже вернула ровно 60 последних дней
+fig.add_trace(go.Scatter(x=prices['Date'], y=prices['Close'], mode='lines', name='Цена', line=dict(color='blue')))
 fig.update_layout(height=400, margin=dict(l=0, r=0, t=0, b=0))
 st.plotly_chart(fig, use_container_width=True)
 
