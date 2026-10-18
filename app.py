@@ -6,6 +6,7 @@ import requests
 from io import StringIO
 import feedparser
 from gigachat import GigaChat
+from datetime import datetime, timedelta
 
 # Настройка страницы
 st.set_page_config(page_title="СППР: Сбер", layout="wide")
@@ -27,11 +28,10 @@ def fetch_news_and_sentiment(auth_key):
     news = []
     for source, url in feeds.items():
         feed = feedparser.parse(url)
-        for entry in feed.entries[:15]: # Берем больше новостей (15 вместо 10)
+        for entry in feed.entries[:15]:
             title_lower = entry.title.lower()
             summary_lower = entry.get("summary", "").lower()
             
-            # Проверяем, есть ли ключевые слова в заголовке или тексте
             if any(kw in title_lower or kw in summary_lower for kw in keywords):
                 news.append({
                     "source": source, 
@@ -40,7 +40,6 @@ def fetch_news_and_sentiment(auth_key):
                     "published": entry.get("published", "")
                 })
     
-    # Если релевантных новостей нет, отправляем хотя бы 3 для контекста
     if not news:
         for source, url in feeds.items():
             feed = feedparser.parse(url)
@@ -52,7 +51,6 @@ def fetch_news_and_sentiment(auth_key):
                     "published": entry.get("published", "")
                 })
 
-    # Оценка GigaChat
     with GigaChat(credentials=auth_key, scope="GIGACHAT_API_PERS", model="GigaChat-2", verify_ssl_certs=False) as giga:
         for item in news:
             prompt = f"""Ты — финансовый аналитик инвестиционной компании. 
@@ -73,9 +71,13 @@ def fetch_news_and_sentiment(auth_key):
                 item['sentiment'] = 0.0
     return news
 
-# --- ФУНКЦИЯ СКАЧИВАНИЯ КОТИРОВОК ---
+# --- ФУНКЦИЯ СКАЧИВАНИЯ КОТИРОВОК (ИСПРАВЛЕНА) ---
 def fetch_prices():
-    url = "https://iss.moex.com/iss/history/engines/stock/markets/shares/boards/TQBR/securities/SBER.csv?from=2024-01-01&to=2025-12-31"
+    # Берем данные с 2024 года по сегодняшний день (2026)
+    end_date = datetime.now().strftime('%Y-%m-%d')
+    start_date = (datetime.now() - timedelta(days=730)).strftime('%Y-%m-%d')
+    
+    url = f"https://iss.moex.com/iss/history/engines/stock/markets/shares/boards/TQBR/securities/SBER.csv?from={start_date}&to={end_date}"
     response = requests.get(url)
     lines = response.text.split('\n')
     header_index = next(i for i, line in enumerate(lines) if "TRADEDATE" in line)
@@ -95,14 +97,12 @@ except:
     st.error("⚠️ Ключ GigaChat не найден в настройках Secrets. Добавь GIGA_AUTH_KEY.")
     st.stop()
 
-# Кнопка обновления
 if st.button("🔄 Обновить данные (новости и котировки)"):
     with st.spinner("Собираю свежие данные..."):
         st.session_state['news'] = fetch_news_and_sentiment(AUTH_KEY)
         st.session_state['prices'] = fetch_prices()
         st.success("Данные обновлены!")
 
-# Если данных в сессии нет, загружаем их при первом запуске
 if 'news' not in st.session_state:
     with st.spinner("Первичная загрузка данных..."):
         st.session_state['news'] = fetch_news_and_sentiment(AUTH_KEY)
@@ -114,7 +114,7 @@ prices = st.session_state['prices']
 last_price = prices['Close'].iloc[-1]
 avg_sent = sum(n['sentiment'] for n in news) / len(news) if news else 0
 
-# --- БЛОК МЕТРИК (РЫНОК И SENTIMENT) ---
+# --- БЛОК МЕТРИК ---
 st.subheader("📈 Текущая ситуация")
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Цена (Close)", f"{last_price:.2f} ₽")
@@ -122,13 +122,12 @@ col2.metric("Средний Sentiment", f"{avg_sent:+.2f}")
 col3.metric("Новостей", len(news))
 col4.metric("Прогноз ETS", "~265 ₽")
 
-# --- БЛОК ФУНДАМЕНТАЛА (АТОН) ---
+# --- БЛОК ФУНДАМЕНТАЛА ---
 st.markdown("---")
 st.subheader("🏦 Фундаментальный анализ (АТОН)")
 
 target_price = 320.0
 dividend = 36.0
-
 upside = ((target_price - last_price) / last_price) * 100
 
 col_f1, col_f2, col_f3 = st.columns(3)
@@ -158,11 +157,10 @@ st.caption(f"Логика: Sentiment = {avg_sent:+.2f}, Цена = {last_price:.
 
 st.markdown("---")
 
-# --- ГРАФИК (ИСПРАВЛЕННЫЙ) ---
+# --- ГРАФИК ---
 st.subheader("📉 Динамика цены (последние 60 дней)")
 fig = go.Figure()
 
-# Берем последние 60 дней для отображения
 prices_plot = prices.tail(60) 
 
 fig.add_trace(go.Scatter(x=prices_plot['Date'], y=prices_plot['Close'], mode='lines', name='Цена', line=dict(color='blue')))
