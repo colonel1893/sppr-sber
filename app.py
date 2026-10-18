@@ -69,10 +69,10 @@ def fetch_news_and_sentiment(auth_key):
                 item['sentiment'] = 0.0
     return news
 
-# --- ФУНКЦИЯ СКАЧИВАНИЯ КОТИРОВОК (ИСПРАВЛЕНА) ---
+# --- ФУНКЦИЯ СКАЧИВАНИЯ КОТИРОВОК (ЖЕСТКО 2026 ГОД) ---
 def fetch_prices():
-    # Запрашиваем данные с 2024 года (без жесткого ограничения конца)
-    start_date = "2024-01-01"
+    # Просим данные с 1 января 2026 года
+    start_date = "2026-01-01"
     url = f"https://iss.moex.com/iss/history/engines/stock/markets/shares/boards/TQBR/securities/SBER.csv?from={start_date}"
     
     response = requests.get(url)
@@ -89,7 +89,7 @@ def fetch_prices():
     df['Date'] = pd.to_datetime(df['Date'].astype(str).str.replace('.', '-', regex=False), errors='coerce')
     df = df.dropna().sort_values('Date')
     
-    # ГЛАВНЫЙ ТРЮК: берем только последние 60 строк из того, что реально пришло
+    # Берем последние 60 дней из того, что пришло за 2026 год
     return df.tail(60)
 
 # --- ЗАГРУЗКА ДАННЫХ ---
@@ -163,7 +163,6 @@ st.markdown("---")
 st.subheader("📉 Динамика цены (последние 60 дней)")
 fig = go.Figure()
 
-# Функция fetch_prices уже вернула ровно 60 последних дней
 fig.add_trace(go.Scatter(x=prices['Date'], y=prices['Close'], mode='lines', name='Цена', line=dict(color='blue')))
 fig.update_layout(height=400, margin=dict(l=0, r=0, t=0, b=0))
 st.plotly_chart(fig, use_container_width=True)
