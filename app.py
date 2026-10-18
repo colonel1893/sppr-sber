@@ -11,20 +11,23 @@ from gigachat import GigaChat
 st.set_page_config(page_title="СППР: Сбер", layout="wide")
 st.title("📊 СППР: Сбер")
 
-# --- ФУНКЦИЯ СБОРА НОВОСТЕЙ С ФИЛЬТРАЦИЕЙ ---
+# --- ФУНКЦИЯ СБОРА НОВОСТЕЙ С РАСШИРЕННОЙ ФИЛЬТРАЦИЕЙ ---
 def fetch_news_and_sentiment(auth_key):
     feeds = {
         "РБК": "https://rssexport.rbc.ru/rbcnews/news/30/full.rss",
         "Интерфакс": "https://www.interfax.ru/rss",
     }
     
-    # Ключевые слова для фильтрации релевантных новостей
-    keywords = ["сбер", "банк", "цб", "ставк", "финанс", "акци", "биржа", "инвест", "деньг", "кредит"]
+    # Расширенный список ключевых слов, влияющих на Сбер
+    keywords = [
+        "сбер", "банк", "цб", "ставк", "финанс", "акци", "биржа", "инвест", "деньг", "кредит",
+        "санкц", "инфляц", "рубл", "дивиденд", "прибыл", "отчет", "регулятор"
+    ]
     
     news = []
     for source, url in feeds.items():
         feed = feedparser.parse(url)
-        for entry in feed.entries[:10]: # Берем больше новостей (10 вместо 5)
+        for entry in feed.entries[:15]: # Берем больше новостей (15 вместо 10)
             title_lower = entry.title.lower()
             summary_lower = entry.get("summary", "").lower()
             
@@ -49,12 +52,13 @@ def fetch_news_and_sentiment(auth_key):
                     "published": entry.get("published", "")
                 })
 
-    # Дальше идет оценка GigaChat
+    # Оценка GigaChat
     with GigaChat(credentials=auth_key, scope="GIGACHAT_API_PERS", model="GigaChat-2", verify_ssl_certs=False) as giga:
         for item in news:
             prompt = f"""Ты — финансовый аналитик инвестиционной компании. 
 Твоя задача — оценить, как эта новость повлияет на цену акций Сбербанка (SBER).
 Игнорируй новости, которые не связаны с финансовым сектором, банками или экономикой России.
+Помни: санкции, эскалация и рост ставки — это негатив для рынка. Снижение ставки, дивиденды и прибыль — позитив.
 Верни ТОЛЬКО одно число от -1 (резко негативно) до +1 (резко позитивно).
 0 — если новость нейтральна или нерелевантна.
 Без лишних слов.
@@ -154,10 +158,14 @@ st.caption(f"Логика: Sentiment = {avg_sent:+.2f}, Цена = {last_price:.
 
 st.markdown("---")
 
-# --- ГРАФИК ---
-st.subheader("📉 Динамика цены")
+# --- ГРАФИК (ИСПРАВЛЕННЫЙ) ---
+st.subheader("📉 Динамика цены (последние 60 дней)")
 fig = go.Figure()
-fig.add_trace(go.Scatter(x=prices['Date'], y=prices['Close'], mode='lines', name='Цена', line=dict(color='blue')))
+
+# Берем последние 60 дней для отображения
+prices_plot = prices.tail(60) 
+
+fig.add_trace(go.Scatter(x=prices_plot['Date'], y=prices_plot['Close'], mode='lines', name='Цена', line=dict(color='blue')))
 fig.update_layout(height=400, margin=dict(l=0, r=0, t=0, b=0))
 st.plotly_chart(fig, use_container_width=True)
 
